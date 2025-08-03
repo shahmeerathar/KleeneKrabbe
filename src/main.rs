@@ -1,3 +1,7 @@
+#![warn(clippy::pedantic)]
+
+use std::char;
+
 #[derive(Debug, Clone)]
 enum Token {
     Literal(char),
@@ -92,6 +96,118 @@ fn parse(needle: String) -> Vec<Token> {
     postfix
 }
 
+enum Transition {
+    Character(char),
+    Epsilon,
+}
+
+struct State {
+    transition: Transition,
+    out1: Option<usize>,
+    out2: Option<usize>,
+}
+
+struct Fragment {
+    start: usize,
+    accept: usize,
+}
+
+struct NFA {
+    states: Vec<State>,
+    start: usize,
+    accept: usize,
+}
+
+fn compile(postfix: &Vec<Token>) -> NFA {
+    let mut states: Vec<State> = Vec::new();
+    let mut stack: Vec<Fragment> = Vec::new();
+    for token in postfix {
+        match token {
+            Token::Literal(c) => {
+                let s1 = State {
+                    transition: Transition::Character(*c),
+                    out1: Some(states.len() + 1),
+                    out2: None,
+                };
+                let s2 = State {
+                    transition: Transition::Epsilon,
+                    out1: None,
+                    out2: None,
+                };
+                let frag = Fragment {
+                    start: states.len(),
+                    accept: states.len() + 1,
+                };
+                states.push(s1);
+                states.push(s2);
+                stack.push(frag);
+            }
+            Token::Concat => {
+                let f2 = stack.pop().expect("Expected existing fragment.");
+                let f1 = stack.pop().expect("Expected existing fragment.");
+                states[f1.accept].out1 = Some(f2.start);
+                let frag = Fragment {
+                    start: f1.start,
+                    accept: f2.accept,
+                };
+                stack.push(frag);
+            }
+            Token::Alt => {
+                let f2 = stack.pop().expect("Expected existing fragment.");
+                let f1 = stack.pop().expect("Expected existing fragment.");
+                let s1 = State {
+                    transition: Transition::Epsilon,
+                    out1: Some(f1.start),
+                    out2: Some(f2.start),
+                };
+                let s2 = State {
+                    transition: Transition::Epsilon,
+                    out1: None,
+                    out2: None,
+                };
+                let frag = Fragment {
+                    start: states.len(),
+                    accept: states.len() + 1,
+                };
+                states[f1.accept].out1 = Some(states.len() + 1);
+                states[f2.accept].out1 = Some(states.len() + 1);
+                states.push(s1);
+                states.push(s2);
+                stack.push(frag);
+            }
+            Token::Star => {
+                let f1 = stack.pop().expect("Expected existing fragment.");
+                let s1 = State {
+                    transition: Transition::Epsilon,
+                    out1: Some(f1.start),
+                    out2: Some(states.len() + 1),
+                };
+                let s2 = State {
+                    transition: Transition::Epsilon,
+                    out1: None,
+                    out2: None,
+                };
+                let frag = Fragment {
+                    start: states.len(),
+                    accept: states.len() + 1,
+                };
+                states[f1.accept].out1 = Some(states.len());
+                states.push(s1);
+                states.push(s2);
+                stack.push(frag);
+            }
+            _ => {}
+        }
+    }
+
+    let fragment = stack.pop().expect("Expected a fragment");
+    NFA {
+        states: states,
+        start: fragment.start,
+        accept: fragment.accept,
+    }
+}
+
 fn main() {
     let haystack =
         String::from("This string should match: abbbbbbbba\nThis string should not match: abbbbba");
@@ -99,4 +215,5 @@ fn main() {
     println!("Finding pattern {needle} in:\n{haystack}");
 
     let postfix = parse(needle);
+    let nfa = compile(&postfix);
 }
