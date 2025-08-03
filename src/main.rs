@@ -11,7 +11,7 @@ fn main() {
     let needle = String::from("a(bb)*a");
     println!("Finding pattern {needle} in:\n{haystack}");
 
-    let postfix = parse(needle);
+    let postfix = parse(&needle);
     let nfa = compile(&postfix);
     let matched_substring = match_pattern(&haystack, &nfa);
     match matched_substring {
