@@ -14,9 +14,9 @@ fn main() {
 
     let postfix = parse(&needle);
     let nfa = compile(&postfix);
-    let matched_substring = match_pattern(&haystack, &nfa);
-    match matched_substring {
-        None => println!("No match found"),
-        Some(substr) => println!("Match found: {:?}", substr),
+    if let Some(matched_substring) = match_pattern(&haystack, &nfa) {
+        println!("Match found: {}", matched_substring);
+    } else {
+        println!("No match found");
     }
 }

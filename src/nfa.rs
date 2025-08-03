@@ -7,7 +7,7 @@ enum Transition {
 }
 
 #[derive(Debug)]
-pub struct State {
+struct State {
     transition: Transition,
     out1: Option<usize>,
     out2: Option<usize>,
@@ -25,7 +25,7 @@ pub struct NFA {
     accept: usize,
 }
 
-pub fn compile(postfix: &Vec<Token>) -> NFA {
+pub fn compile(postfix: &[Token]) -> NFA {
     let mut states: Vec<State> = Vec::new();
     let mut stack: Vec<Fragment> = Vec::new();
     for token in postfix {
@@ -145,9 +145,9 @@ fn follow_epsilons(state: &State, states: &mut Vec<usize>, nfa: &NFA) {
     };
 }
 
-pub fn match_pattern(haystack: &String, nfa: &NFA) -> Option<String> {
-    for i in 0..haystack.len() {
-        let substr = &haystack[i..haystack.len()];
+pub fn match_pattern<'a>(haystack: &'a String, nfa: &'a NFA) -> Option<&'a str> {
+    for (i, _) in haystack.char_indices() {
+        let substr = &haystack[i..];
         println!("Substring: {}", substr);
 
         let mut curr_states: Vec<usize> = Vec::new();
@@ -166,33 +166,23 @@ pub fn match_pattern(haystack: &String, nfa: &NFA) -> Option<String> {
             };
 
             println!("Char: {}", char);
-            while !curr_states.is_empty() {
-                let state_idx = curr_states.pop().expect("Expected a state in curr_states");
-                if state_idx == nfa.accept {
-                    return Some(substr.to_string());
-                }
+            for state_idx in curr_states.drain(..) {
                 let state = &nfa.states[state_idx];
                 println!("State {}: {:?}", state_idx, state);
-                match state.transition {
-                    Transition::Character(c) => {
-                        if char == c {
-                            match state.out1 {
-                                None => {}
-                                Some(s) => {
-                                    if s == nfa.accept {
-                                        return Some(substr[..j + 1].to_string());
-                                    }
-                                    next_states.push(s)
-                                }
-                            };
+
+                if let Transition::Character(c) = state.transition
+                    && char == c
+                {
+                    if let Some(s) = state.out1 {
+                        if s == nfa.accept {
+                            return Some(&substr[..j + 1]);
                         }
-                    }
-                    Transition::Epsilon => {}
+                        next_states.push(s)
+                    };
                 }
             }
 
-            while !next_states.is_empty() {
-                let next_state_idx = next_states.pop().expect("Expected a state in next_states");
+            for next_state_idx in next_states.drain(..) {
                 let next_state = &nfa.states[next_state_idx];
                 match next_state.transition {
                     Transition::Character(_) => curr_states.push(next_state_idx),
