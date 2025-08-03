@@ -6,9 +6,10 @@ use nfa::{compile, match_pattern};
 use parse::parse;
 
 fn main() {
-    let haystack =
-        String::from("This string should match: abbbbbbbba. This string should not match: abbbbba");
-    let needle = String::from("a(bb)*a");
+    let haystack = String::from(
+        "This string should not match: abbcbbba. This string should match: abbbbccbba.",
+    );
+    let needle = String::from("a((bb)|(cc))*a");
     println!("Finding pattern {needle} in:\n{haystack}");
 
     let postfix = parse(&needle);
