@@ -96,11 +96,13 @@ fn parse(needle: String) -> Vec<Token> {
     postfix
 }
 
+#[derive(Debug)]
 enum Transition {
     Character(char),
     Epsilon,
 }
 
+#[derive(Debug)]
 struct State {
     transition: Transition,
     out1: Option<usize>,
@@ -112,6 +114,7 @@ struct Fragment {
     accept: usize,
 }
 
+#[derive(Debug)]
 struct NFA {
     states: Vec<State>,
     start: usize,
@@ -208,12 +211,104 @@ fn compile(postfix: &Vec<Token>) -> NFA {
     }
 }
 
+fn follow_epsilons(state: &State, states: &mut Vec<usize>, nfa: &NFA) {
+    match state.out1 {
+        None => {}
+        Some(idx) => {
+            let s = &nfa.states[idx];
+            match s.transition {
+                Transition::Character(_) => states.push(idx),
+                Transition::Epsilon => follow_epsilons(s, states, nfa),
+            }
+        }
+    };
+    match state.out2 {
+        None => {}
+        Some(idx) => {
+            let s = &nfa.states[idx];
+            match s.transition {
+                Transition::Character(_) => states.push(idx),
+                Transition::Epsilon => follow_epsilons(s, states, nfa),
+            }
+        }
+    };
+}
+
+fn match_pattern(haystack: &String, nfa: &NFA) -> Option<String> {
+    for i in 0..haystack.len() {
+        let substr = &haystack[i..haystack.len()];
+        println!("\nSubstring: {:?}", substr);
+
+        let mut curr_states: Vec<usize> = Vec::new();
+        let mut next_states: Vec<usize> = Vec::new();
+        let start_state = &nfa.states[nfa.start];
+        match start_state.transition {
+            Transition::Character(_) => curr_states.push(nfa.start),
+            Transition::Epsilon => {
+                follow_epsilons(start_state, &mut curr_states, nfa);
+            }
+        }
+
+        for (j, char) in substr.chars().enumerate() {
+            if curr_states.is_empty() {
+                break;
+            };
+
+            println!("\nChar: {:?}", char);
+            while !curr_states.is_empty() {
+                let state_idx = curr_states.pop().expect("Expected a state in curr_states");
+                if state_idx == nfa.accept {
+                    return Some(substr.to_string());
+                }
+                let state = &nfa.states[state_idx];
+                println!("State {:?}: {:?}", state_idx, state);
+                match state.transition {
+                    Transition::Character(c) => {
+                        if char == c {
+                            match state.out1 {
+                                None => {}
+                                Some(s) => {
+                                    if s == nfa.accept {
+                                        return Some(substr[..j + 1].to_string());
+                                    }
+                                    next_states.push(s)
+                                }
+                            };
+                        }
+                    }
+                    Transition::Epsilon => {}
+                }
+            }
+
+            while !next_states.is_empty() {
+                let next_state_idx = next_states.pop().expect("Expected a state in next_states");
+                let next_state = &nfa.states[next_state_idx];
+                match next_state.transition {
+                    Transition::Character(_) => curr_states.push(next_state_idx),
+                    Transition::Epsilon => follow_epsilons(next_state, &mut curr_states, nfa),
+                }
+            }
+        }
+    }
+
+    None
+}
+
 fn main() {
     let haystack =
-        String::from("This string should match: abbbbbbbba\nThis string should not match: abbbbba");
+        String::from("This string should match: abbbbbbbba. This string should not match: abbbbba");
     let needle = String::from("a(bb)*a");
-    println!("Finding pattern {needle} in:\n{haystack}");
+    println!("Finding pattern {needle} in:\n{haystack}\n");
 
     let postfix = parse(needle);
     let nfa = compile(&postfix);
+    println!("\nNFA:");
+    for (i, state) in nfa.states.iter().enumerate() {
+        println!("{:?}: {:?}", i, state);
+    }
+    let matched_substring = match_pattern(&haystack, &nfa);
+    match matched_substring {
+        None => println!("\nNo match found"),
+        Some(substr) => println!("\nMatch found: {:?}", substr),
+    }
 }
